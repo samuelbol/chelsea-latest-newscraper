@@ -13,7 +13,7 @@ HEADER = {
 keep_alive()
 
 BOT_TOKEN = os.environ.get('bot_token')
-CHAT_ID = os.environ.get('chat_id')
+# CHAT_ID = os.environ.get('chat_id')
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/"
 
 
