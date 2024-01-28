@@ -46,7 +46,7 @@ def scrape_cfc_latest_news():
                 continue
 
             try:
-                with open("logfile.txt", "r") as file:
+                with open("../logfile.txt", "r") as file:
                     saved_titles = [
                         line.rstrip("\n") for line in file.readlines()
                     ]
