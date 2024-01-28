@@ -142,7 +142,7 @@ def main():
 
 
 scheduler = BlockingScheduler(timezone=utc)
-scheduler.add_job(main, "interval", minutes=5)
+scheduler.add_job(main, "interval", minutes=10)
 
-scheduler.start()
-# main()
+# scheduler.start()
+main()
