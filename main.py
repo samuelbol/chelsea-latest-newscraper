@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from pymongo import MongoClient
 import os
 
-# connection_string = os.environ.get("connection_string")
+connection_string = os.environ.get("connection_string")
 client = MongoClient(connection_string)
 
 db = client['chelsea_news']
