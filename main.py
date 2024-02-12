@@ -1,97 +1,70 @@
-import requests
-from bs4 import BeautifulSoup
-from apscheduler.schedulers.blocking import BlockingScheduler
-from pytz import utc
-import os
 from keep_alive import keep_alive
+import pytz
+import requests
+from apscheduler.schedulers.blocking import BlockingScheduler
+from bs4 import BeautifulSoup
+from pymongo import MongoClient
+import os
+
+# connection_string = os.environ.get("connection_string")
+client = MongoClient(connection_string)
+
+db = client['chelsea_news']
+collection = db['cfclatest']
 
 HEADER = {
     "User-Agent":
-    "Mozilla/5.0 (X11; CrOS x86_64 8172.45.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.64 Safari/537.36"
+        "Mozilla/5.0 (X11; CrOS x86_64 8172.45.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.64 Safari/537.36"
 }
 
-keep_alive()
-
-BOT_TOKEN = os.environ.get('bot_token')
-# CHAT_ID = os.environ.get('chat_id')
+BOT_TOKEN = os.environ.get("bot_token")
+CHAT_ID = os.environ.get("chat_id")
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/"
+
+keep_alive()
+nigerian_tz = pytz.timezone("Africa/Lagos")
 
 
 def scrape_cfc_latest_news():
     url = "https://chelseafclatestnews.com/"
 
-    try:
-        response = requests.get(url, headers=HEADER, timeout=(10, 27))
-        response.raise_for_status()  # Check for HTTP status code errors
+    response = requests.get(url, headers=HEADER, timeout=(10, 27))
+    response.raise_for_status()  # Check for HTTP status code errors
 
-        soup = BeautifulSoup(response.content, "html.parser")
+    soup = BeautifulSoup(response.content, "html.parser")
 
-        cards = soup.find("div", class_="td-big-grid-wrapper").find_all(
-            "div", class_="td-module-thumb")
-        news_items = []
-        no_news = [
-            'chelsea vs', 'live streaming chelsea vs',
-            'prediction, betting tips, odds & preview', 'predicted line up',
-            'where to watch, tv channel, kick-off time, date'
-        ]
+    cards = soup.find("div", class_="td-big-grid-wrapper").find_all("div", class_="td-module-thumb")
+    news_items = []
+    no_news = ['chelsea vs', 'live streaming chelsea vs', 'prediction, betting tips, odds & preview', 'predicted line up', 'where to watch, tv channel, kick-off time, date']
 
-        for card in cards:
-            itm_title = card.a.get("title", "")
-            itm_link = card.a.get("href", "")
+    for card in cards:
+        itm_title = card.a.get("title", "")
+        itm_link = card.a.get("href", "")
 
-            if not itm_title or not itm_link:
-                continue
+        if not itm_title or not itm_link:
+            continue
 
-            if any(no_new in itm_title.lower() for no_new in no_news):
-                continue
+        if any(no_new in itm_title.lower() for no_new in no_news):
+            continue
 
-            try:
-                with open("../logfile.txt", "r") as file:
-                    saved_titles = [
-                        line.rstrip("\n") for line in file.readlines()
-                    ]
-                    if itm_title in saved_titles:
-                        continue
-            except FileNotFoundError:
-                pass
+        resp = requests.get(itm_link, headers=HEADER, timeout=(10, 27))
+        resp.raise_for_status()  # Check for HTTP status code errors
 
-            resp = requests.get(itm_link, headers=HEADER, timeout=(10, 27))
-            resp.raise_for_status()  # Check for HTTP status code errors
+        soup = BeautifulSoup(resp.content, "html.parser")
 
-            soup = BeautifulSoup(resp.content, "html.parser")
+        try:
+            itm_img = soup.article.find("figure").a.get('href', "")
+        except AttributeError:
+            itm_img = soup.article.find("div", class_="td-post-featured-image").a.get('href', "")
 
-            try:
-                itm_img = soup.article.find("figure").a.get('href', "")
-            except AttributeError:
-                itm_img = soup.article.find(
-                    "div", class_="td-post-featured-image").a.get('href', "")
+        contents = soup.article.find("div", class_="td-post-content td-pb-padding-side").find_all("p")
+        itm_story = "".join([content.get_text() + "\n\n" for content in contents[:2] if content.get_text(strip=True) != 'See More:'])
 
-            contents = soup.article.find(
-                "div",
-                class_="td-post-content td-pb-padding-side").find_all("p")
-            itm_story = "".join([
-                content.get_text(strip=True) + "\n\n" for content in contents[:3]
-                if content.get_text(strip=True) != 'See More:'
-            ])
+        news_items.append({"title": itm_title, "image": itm_img, "contents": itm_story})
 
-            news_items.append({
-                "title": itm_title,
-                "image": itm_img,
-                "contents": itm_story
-            })
-
-        return news_items
-
-    except requests.exceptions.RequestException as e:
-        print("Error during the request:", e)
-
-    except Exception as ex:
-        print("An error occurred:", ex)
-
-    return []
+    return news_items
 
 
-# Function to send news to Telegram
 def send_news_to_telegram(article_items):
     for item in article_items:
         title_ = item.get("title", "")
@@ -104,17 +77,12 @@ def send_news_to_telegram(article_items):
             continue
 
         message = f"🚨 *{title_}*\n\n{story_}\n" \
-                  f"🔗 *CFCLatest*\n\n" \
+                  f"*🔗 CFCLatest*\n\n" \
                   f"📲 @JustCFC"
         # print(message)
 
-        try:
-            with open("logfile.txt", "r", encoding='utf-8') as file:
-                saved_titles = [line.rstrip("\n") for line in file.readlines()]
-        except FileNotFoundError:
-            saved_titles = []
-
-        if title_ not in saved_titles:
+        saved_titles = collection.find_one({"text": title_})
+        if not saved_titles:
             response = requests.post(BASE_URL + "sendPhoto",
                                      json={
                                          "chat_id": CHAT_ID,
@@ -127,9 +95,8 @@ def send_news_to_telegram(article_items):
             if response.status_code == 200:
                 print("Message sent successfully.")
 
-                with open("logfile.txt", "a", encoding='utf-8') as file:
-                    file.write(f"{title_}\n")
-
+                # Insert the text into the collection
+                collection.insert_one({"text": title_})
             else:
                 print(
                     f"Message sending failed. Status code: {response.status_code}"
@@ -141,8 +108,8 @@ def main():
     send_news_to_telegram(news_items)
 
 
-scheduler = BlockingScheduler(timezone=utc)
-scheduler.add_job(main, "interval", minutes=10)
+scheduler = BlockingScheduler(timezone=nigerian_tz)
+scheduler.add_job(main, "interval", minutes=30)
 
-# scheduler.start()
-main()
+scheduler.start()
+# main()
