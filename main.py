@@ -61,7 +61,6 @@ def scrape_cfc_latest_news():
         itm_story = "".join([content.get_text() + "\n\n" for content in contents[:2] if content.get_text(strip=True) != 'See More:'])
 
         news_items.append({"title": itm_title, "image": itm_img, "contents": itm_story})
-        print(news_items)
 
     return news_items
 
@@ -83,25 +82,28 @@ def send_news_to_telegram(article_items):
         # print(message)
 
         saved_titles = collection.find_one({"text": title_})
-        if not saved_titles:
-            response = requests.post(BASE_URL + "sendPhoto",
-                                     json={
-                                         "chat_id": CHAT_ID,
-                                         "disable_web_page_preview": False,
-                                         "parse_mode": "Markdown",
-                                         "caption": message,
-                                         "photo": img_
-                                     })
-            # Check the response status
-            if response.status_code == 200:
-                print("Message sent successfully.")
+        if saved_titles:
+            continue
+            
+        response = requests.post(BASE_URL + "sendPhoto",
+                                 json={
+                                     "chat_id": CHAT_ID,
+                                     "disable_web_page_preview": False,
+                                     "parse_mode": "Markdown",
+                                     "caption": message,
+                                     "photo": img_
+                                 })
+        
+        # Check the response status
+        if response.status_code == 200:
+            print("Message sent successfully.")
 
-                # Insert the text into the collection
-                collection.insert_one({"text": title_})
-            else:
-                print(
-                    f"Message sending failed. Status code: {response.status_code}"
-                )
+            # Insert the text into the collection
+            collection.insert_one({"text": title_})
+        else:
+            print(
+                f"Message sending failed. Status code: {response.status_code}"
+            )
 
 
 def main():
@@ -110,7 +112,7 @@ def main():
 
 
 scheduler = BlockingScheduler(timezone=nigerian_tz)
-scheduler.add_job(main, "interval", minutes=30)
+scheduler.add_job(main, "interval", minutes=10)
 
 scheduler.start()
-main()
+# main()
