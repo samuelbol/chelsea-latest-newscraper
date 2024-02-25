@@ -61,6 +61,7 @@ def scrape_cfc_latest_news():
         itm_story = "".join([content.get_text() + "\n\n" for content in contents[:2] if content.get_text(strip=True) != 'See More:'])
 
         news_items.append({"title": itm_title, "image": itm_img, "contents": itm_story})
+        print(news_items)
 
     return news_items
 
