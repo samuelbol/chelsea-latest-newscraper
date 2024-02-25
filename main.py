@@ -112,4 +112,4 @@ scheduler = BlockingScheduler(timezone=nigerian_tz)
 scheduler.add_job(main, "interval", minutes=30)
 
 scheduler.start()
-# main()
+main()
